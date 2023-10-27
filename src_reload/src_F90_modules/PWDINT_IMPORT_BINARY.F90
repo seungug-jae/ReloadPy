@@ -1,0 +1,112 @@
+!---------------------------------------------------------------------------------------------------------------------------------
+!  PWDINT_IMPORT_BINARY(USER_PWDINT,USER_FILENAME)
+!  Imports the binary PWDINT data file
+!---------------------------------------------------------------------------------------------------------------------------------
+SUBROUTINE PWDINT_IMPORT_BINARY(Output_Unit,USER_PWDINT,USER_FILENAME)
+USE PWDINT_io
+USE NE_Kind
+#include "DIF3D_Types.h"
+!#define DIF3D_Debug
+IMPLICIT NONE
+! Passed in
+DIF3D_Int Output_Unit
+TYPE (PWDINT_DATA) USER_PWDINT  ! A user data variable to be defined by reading in a PWDINT file
+CHARACTER(*) USER_FILENAME
+! Local
+DIF3D_Int INPUTUNIT
+DIF3D_Int IOS,I,J,K,M,N,JL,JU,BLOCKWIDTH
+
+100 FORMAT('[PWDINT]...SORRY, BUT I MUST STOP')
+101 FORMAT('[PWDINT]',107('.'))
+102 FORMAT('')
+105 FORMAT('[PWDINT]...THERE WAS A FATAL ERROR THAT OCCURED IN (IMPORT_BINARY)',49('.'))
+
+IF (USER_PWDINT%DEFINED) CALL PWDINT_VOID(USER_PWDINT)   ! If the variable is already defined, void it
+
+USER_PWDINT%FILENAME = ADJUSTL(USER_FILENAME)
+INPUTUNIT = NE_Kind_GetFreeLogicalUnit()
+
+OPEN(UNIT=INPUTUNIT,IOSTAT=IOS,FILE=USER_FILENAME,STATUS='OLD',ACCESS='SEQUENTIAL',FORM='UNFORMATTED')
+IF (IOS .NE. 0) THEN
+   WRITE(Output_Unit,105)
+   WRITE(Output_Unit,'("[PWDINT]...CANNOT OPEN FILE <",A80,">",5("."))') USER_FILENAME
+   WRITE(Output_Unit,100)
+   CALL Abort
+END IF
+
+! READ IN ISOTOPE NAMES (AND OTHER DATA) FROM PWDINT FILE (TYPE 1-2)
+#ifdef DIF3D_Debug
+   WRITE(Output_Unit,101)
+   WRITE(Output_Unit,'("[DLAYXS]...DEBUG PRINT OF PWDINT IMPORT ROUTINE",52("."),A16)') USER_FILENAME
+   WRITE(Output_Unit,101)
+#endif
+! Read Card Type 0
+READ(INPUTUNIT,IOSTAT=IOS) USER_PWDINT%HNAME,(USER_PWDINT%HUSE(I),I=1,2),USER_PWDINT%IVERS
+IF (IOS .NE. 0) THEN
+   REWIND(INPUTUNIT)
+   USER_PWDINT%IVERS = 0
+   USER_PWDINT%HUSE(2) = ''
+   READ(INPUTUNIT,IOSTAT=IOS) USER_PWDINT%HNAME,USER_PWDINT%HUSE(1)
+   IF (IOS .NE. 0) THEN
+      WRITE(Output_Unit,105)
+      WRITE(Output_Unit,'("[PWDINT]...RECORD 1 failure")')
+      WRITE(Output_Unit,100)
+      CALL Abort
+   END IF
+END IF
+
+#ifdef DIF3D_Debug
+   WRITE(Output_Unit,'("[PWDINT]...HNAME............................",55("."),A16)') USER_PWDINT%HNAME
+   WRITE(Output_Unit,'("[PWDINT]...HUSE(1)..........................",55("."),A16)') USER_PWDINT%HUSE(1)
+   WRITE(Output_Unit,'("[PWDINT]...HUSE(2)..........................",55("."),A16)') USER_PWDINT%HUSE(2)
+   WRITE(Output_Unit,'("[PWDINT]...IVERS............................",55("."),I16)') USER_PWDINT%IVERS
+#endif
+
+! Read Card Type 1
+READ(INPUTUNIT) USER_PWDINT%TIME,USER_PWDINT%POWER,USER_PWDINT%VOL,        &
+                USER_PWDINT%NINTI,USER_PWDINT%NINTJ,USER_PWDINT%NINTK,USER_PWDINT%NCY,USER_PWDINT%NBLOK
+
+#ifdef DIF3D_Debug
+   WRITE(Output_Unit,'("[PWDINT]...REFERENCE REAL TIME, DAYS........",55("."),1PE16.9)') USER_PWDINT%TIME
+   WRITE(Output_Unit,'("[PWDINT]...NEUTRONICS POWER LEVEL (WATTS)...",55("."),1PE16.9)') USER_PWDINT%POWER
+   WRITE(Output_Unit,'("[PWDINT]...VOLUME (CC) OF INTERVAL..........",55("."),1PE16.9)') USER_PWDINT%VOL
+   WRITE(Output_Unit,'("[PWDINT]...FIRST DIMENSION FINE INTERVALS...",55("."),I16)') USER_PWDINT%NINTI
+   WRITE(Output_Unit,'("[PWDINT]...SECOND DIMENSION FINE INTERVALS..",55("."),I16)') USER_PWDINT%NINTJ
+   WRITE(Output_Unit,'("[PWDINT]...THIRD DIMENSION FINE INTERVALS...",55("."),I16)') USER_PWDINT%NINTK
+   WRITE(Output_Unit,'("[PWDINT]...REFERENCE COUNT (CYCLE NUMBER)...",55("."),I16)') USER_PWDINT%NCY
+   WRITE(Output_Unit,'("[PWDINT]...DATA BLOCKING OF SECOND DIMENSION",55("."),I16)') USER_PWDINT%NBLOK
+#endif
+
+CALL PWDINT_DEFINE(USER_PWDINT,USER_PWDINT%NINTI,USER_PWDINT%NINTJ,USER_PWDINT%NINTK)
+
+! Read Card Type 2
+BLOCKWIDTH = (USER_PWDINT%NINTJ-1)/USER_PWDINT%NBLOK+1 ! = (9-1)/2+1 = 5
+DO K = 1,USER_PWDINT%NINTK
+   DO M = 1,USER_PWDINT%NBLOK
+      JL = (M-1)*BLOCKWIDTH+1      ! = 1;6
+      JU = M*BLOCKWIDTH            ! = 5;9
+      IF (JU .GT. USER_PWDINT%NINTJ) JU = USER_PWDINT%NINTJ
+      READ(INPUTUNIT) ((USER_PWDINT%PWR(I,J,K),I=1,USER_PWDINT%NINTI),J=JL,JU)
+   END DO
+END DO
+
+#ifdef DIF3D_Debug
+   DO K = 1,USER_PWDINT%NINTK
+      WRITE(Output_Unit,'("[PWDINT]",31("."),"POWER DENSITY FOR AXIAL PLANE",31("."),I16)') K
+         WRITE(Output_Unit,'(("[PWDINT]...J ->",3X, 5000(5X,I4,5X)))') (J,J=1,USER_PWDINT%NINTJ)
+      DO I = 1,USER_PWDINT%NINTI
+         WRITE(Output_Unit,'(("[PWDINT]...I=",I3,2X,5000(1PE13.5,1X)))') I,(USER_PWDINT%PWR(I,J,K),J=1,USER_PWDINT%NINTJ)
+      END DO
+   END DO
+#endif
+
+! Reset the blocking variable to make life easier
+USER_PWDINT%NBLOK = 1
+
+CLOSE(UNIT=INPUTUNIT)
+USER_PWDINT%DEFINED = .TRUE.
+
+CALL NE_Kind_FREELOGICALUNIT(INPUTUNIT)
+
+END SUBROUTINE PWDINT_IMPORT_BINARY
+

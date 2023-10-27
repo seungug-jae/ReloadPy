@@ -1,0 +1,276 @@
+!---------------------------------------------------------------------------------------------------------------------------------
+!  LABELS_IMPORT(USER_LABELS,USER_FILENAME)
+!  Imports the LABELS data file
+!---------------------------------------------------------------------------------------------------------------------------------
+SUBROUTINE LABELS_IMPORT(Output_Unit,USER_LABELS,USER_FILENAME)
+USE LABELS_io
+USE NE_Kind
+#include "DIF3D_Types.h"
+IMPLICIT NONE
+! Passed in
+DIF3D_Int Output_Unit
+TYPE (LABELS_DATA) USER_LABELS  ! A user data variable to be defined by reading in a LABELS file
+CHARACTER(*) USER_FILENAME
+! Local
+DIF3D_Int INPUTUNIT
+DIF3D_Int IOS,I,J,K,L,M,N
+
+100 FORMAT('[LABELS]...SORRY, BUT I MUST STOP')
+101 FORMAT('[LABELS]',107('.'))
+102 FORMAT('')
+105 FORMAT('[LABELS]...THERE WAS A FATAL ERROR THAT OCCURED IN (IMPORT)',56('.'))
+
+IF (USER_LABELS%DEFINED) CALL LABELS_VOID(USER_LABELS)   ! If the variable is already defined, void it
+
+USER_LABELS%FILENAME = ADJUSTL(USER_FILENAME)
+INPUTUNIT = NE_Kind_GetFreeLogicalUnit()
+
+OPEN(UNIT=INPUTUNIT,IOSTAT=IOS,FILE=USER_FILENAME,STATUS='OLD',ACCESS='SEQUENTIAL',FORM='UNFORMATTED')
+IF (IOS .NE. 0) THEN
+   WRITE(Output_Unit,105)
+   WRITE(Output_Unit,'("[LABELS]...CANNOT OPEN FILE <",A80,">",5("."))') USER_FILENAME
+   WRITE(Output_Unit,100)
+   CALL Abort
+END IF
+
+#ifdef DIF3D_Debug
+   WRITE(Output_Unit,101)
+   WRITE(Output_Unit,'("[DLAYXS]...DEBUG PRINT OF LABELS IMPORT ROUTINE",52("."),A16)') USER_FILENAME
+   WRITE(Output_Unit,101)
+#endif
+
+! Read Card Type 0
+READ(INPUTUNIT) USER_LABELS%HNAME,(USER_LABELS%HUSE(I),I=1,2),USER_LABELS%IVERS
+! Read Card Type 1
+READ(INPUTUNIT)  USER_LABELS%NTZSZ,USER_LABELS%NREG,USER_LABELS%NAREA,USER_LABELS%LREGA,                           &  ! TYPE 2
+                 USER_LABELS%NHTS1,USER_LABELS%NHTS2,                                                              &  ! TYPE 3
+                 USER_LABELS%NSETS,                                                                                &  ! TYPE 4
+                 USER_LABELS%NALIAS,                                                                               &  ! TYPE 5
+                 USER_LABELS%NTRI,USER_LABELS%NRING,                                                               &  ! JUNK
+                 USER_LABELS%NCHAN,USER_LABELS%NBANKS,USER_LABELS%LINTAX,USER_LABELS%MAXTIM,USER_LABELS%MAXROD,    &  ! TYPE 6,7,8
+                                   USER_LABELS%MAXMSH,USER_LABELS%MAXLRD,USER_LABELS%MAXLCH,                       &  
+                 USER_LABELS%NVARY,USER_LABELS%MAXBRN,USER_LABELS%MAXORD,USER_LABELS%ND,(USER_LABELS%IDUM(I),I=1,2)   ! TYPE 9,10,11
+
+#ifdef DIF3D_Debug
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF ZONES AND SUBZONES...........................",33("."),I16)') USER_LABELS%NTZSZ
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF REGIONS......................................",33("."),I16)') USER_LABELS%NREG 
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF AREAS........................................",33("."),I16)') USER_LABELS%NAREA
+   WRITE(Output_Unit,'("[LABELS]...LENGTH OF NRA ARRAY....................................",33("."),I16)') USER_LABELS%LREGA
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF HALF-HEIGHT AND EXTPOL. DIST. SPECS D=1......",33("."),I16)') USER_LABELS%NHTS1
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF HALF-HEIGHT AND EXTPOL. DIST. SPECS D=2......",33("."),I16)') USER_LABELS%NHTS2
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF NUCLIDE SETS.................................",33("."),I16)') USER_LABELS%NSETS
+   WRITE(Output_Unit,'("[LABELS]...LENGTH OF ALIAS ARRAY..................................",33("."),I16)') USER_LABELS%NALIAS
+   WRITE(Output_Unit,'("[LABELS]...NO. OF TRIANGLES PER HEX FOR TRIANGULAR GEOMETRIES.....",33("."),I16)') USER_LABELS%NTRI 
+   WRITE(Output_Unit,'("[LABELS]...MAX. NO. OF RINGS OF HEXAGONS FOR TRIANGULAR GEOMETRIES",33("."),I16)') USER_LABELS%NRING
+   WRITE(Output_Unit,'("[LABELS]...NO. OF CONTROL-ROD CHANNELS IN THE MODEL...............",33("."),I16)') USER_LABELS%NCHAN 
+   WRITE(Output_Unit,'("[LABELS]...NO. OF CONTROL-ROD BANKS...............................",33("."),I16)') USER_LABELS%NBANKS
+   WRITE(Output_Unit,'("[LABELS]...ORIGINAL NO. OF FINE MESH INTERVALS IN AXIAL DIMENSION.",33("."),I16)') USER_LABELS%LINTAX
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM TIME...........................................",33("."),I16)') USER_LABELS%MAXTIM
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM NUMBER OF CONTROL RODS.........................",33("."),I16)') USER_LABELS%MAXROD
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM NUMBER OF MESHES...............................",33("."),I16)') USER_LABELS%MAXMSH
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM NUMBER OF CONTROL ROD PIECES...................",33("."),I16)') USER_LABELS%MAXLRD
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM NUMBER OF CONTROL ROD CHANNELS?................",33("."),I16)') USER_LABELS%MAXLCH
+   WRITE(Output_Unit,'("[LABELS]...NUMBER OF BURNUP DEPENDENT ISOTOPES....................",33("."),I16)') USER_LABELS%NVARY
+   WRITE(Output_Unit,'("[LABELS]...MAXIMUM NUMBER OF BURNUP DEPENDENT GROUPS..............",33("."),I16)') USER_LABELS%MAXBRN
+   WRITE(Output_Unit,'("[LABELS]...HIGHEST ORDER POLYNOMIAL FIT...........................",33("."),I16)') USER_LABELS%MAXORD
+   WRITE(Output_Unit,'("[LABELS]...DIMENSIONS? 1 OR 2.....................................",33("."),I16)') USER_LABELS%ND
+#endif
+
+CALL LABELS_DEFINE(USER_LABELS,USER_LABELS%NTZSZ,USER_LABELS%NREG,USER_LABELS%NAREA,USER_LABELS%LREGA,              &    
+                           USER_LABELS%NHTS1,USER_LABELS%NHTS2,                                                            &
+                           USER_LABELS%NSETS,                                                                              &
+                           USER_LABELS%NALIAS,USER_LABELS%NTRI,USER_LABELS%NRING,                                          &
+                           USER_LABELS%NCHAN,USER_LABELS%NBANKS,USER_LABELS%LINTAX,USER_LABELS%MAXTIM,USER_LABELS%MAXROD,  &
+                           USER_LABELS%MAXMSH,USER_LABELS%MAXLRD,USER_LABELS%MAXLCH,                                       &
+                           USER_LABELS%NVARY,USER_LABELS%MAXBRN,USER_LABELS%MAXORD,USER_LABELS%ND                          )
+
+! Card type 2
+READ(INPUTUNIT) (USER_LABELS%CMPNAM(I),I=1,USER_LABELS%NTZSZ),(USER_LABELS%REGNAM(I),I=1,USER_LABELS%NREG),  &
+                (USER_LABELS%ARANAM(I),I=1,USER_LABELS%NAREA),(USER_LABELS%NRA(I),I=1,USER_LABELS%LREGA)
+
+#ifdef DIF3D_Debug
+   300 FORMAT(('[LABELS]...',7('[',I3,',',A8,']'),     6(".")))  ! CHARACTER
+   305 FORMAT(('[LABELS]...',5('[',I3,',',1PE13.6,']'),9(".")))  ! REAL
+   310 FORMAT(('[LABELS]...',8('[',I3,',',I6,']'),     8(".")))  ! DIF3D_Int
+   
+   WRITE(Output_Unit,'("[LABELS]...COMPOSITION NAMES........................",63("."))')
+   WRITE(Output_Unit,300) (I,USER_LABELS%CMPNAM(I),I=1,USER_LABELS%NTZSZ)
+   WRITE(Output_Unit,'("[LABELS]...REGION NAMES.............................",63("."))')
+   WRITE(Output_Unit,300) (I,USER_LABELS%REGNAM(I),I=1,USER_LABELS%NREG)
+   WRITE(Output_Unit,'("[LABELS]...AREA NAMES...............................",63("."))')
+   WRITE(Output_Unit,300) (I,USER_LABELS%ARANAM(I),I=1,USER_LABELS%NAREA)
+   K = 1
+   DO I = 1,USER_LABELS%NAREA
+      WRITE(Output_Unit,'("[LABELS]...REGIONS FOR AREA.........................",47("."),I16)') I
+      WRITE(Output_Unit,300) (J,USER_LABELS%REGNAM(USER_LABELS%NRA(K+J)),J=1,USER_LABELS%NRA(K))
+      K = K + USER_LABELS%NRA(K) + 1
+   END DO
+#endif
+
+! Read Card Type 3
+IF ((USER_LABELS%NHTS1.GT.0) .OR. (USER_LABELS%NHTS2.GT.0)) THEN
+   READ(INPUTUNIT)  (USER_LABELS%HAFHT1(I),I=1,USER_LABELS%NHTS1),(USER_LABELS%XTRAP1(I),I=1,USER_LABELS%NHTS1),    &
+                    (USER_LABELS%HAFHT2(I),I=1,USER_LABELS%NHTS2),(USER_LABELS%XTRAP2(I),I=1,USER_LABELS%NHTS2)
+#ifdef DIF3D_Debug
+      315 FORMAT(('[LABELS]...',3('[',I3,',',1PE13.6,',',1PE13.6,']'),5(".")))
+      WRITE(Output_Unit,'("[LABELS]...TRANSVERSE HALF HEIGHT AND EXTRAPOLATION PER REGION FOR FIRST DIMENSION",33("."))')
+      WRITE(Output_Unit,315) (I,USER_LABELS%HAFHT1(I),USER_LABELS%XTRAP1(I),I=1,USER_LABELS%NHTS1)
+      WRITE(Output_Unit,'("[LABELS]...TRANSVERSE HALF HEIGHT AND EXTRAPOLATION PER REGION FOR SECOND DIMENSION",32("."))')
+      WRITE(Output_Unit,315) (I,USER_LABELS%HAFHT2(I),USER_LABELS%XTRAP2(I),I=1,USER_LABELS%NHTS2)
+#endif
+END IF
+
+! Read Card Type 4
+IF (USER_LABELS%NSETS .GT. 0) THEN
+   READ(INPUTUNIT) (USER_LABELS%SETISO(I),I=1,USER_LABELS%NSETS)
+#ifdef DIF3D_Debug
+      WRITE(Output_Unit,'("[LABELS]...NUCLIDE SET LABELS.....................",65("."))')
+      WRITE(Output_Unit,300) (I,USER_LABELS%SETISO(I),I=1,USER_LABELS%NSETS)
+#endif
+END IF
+
+! Read Card Type 5
+IF (USER_LABELS%NALIAS .GT. 0) THEN
+   READ(INPUTUNIT) (USER_LABELS%ALIAS(I),I=1,USER_LABELS%NALIAS)
+#ifdef DIF3D_Debug
+      WRITE(Output_Unit,'("[LABELS]...ALIAS ZONE LABELS......................",65("."))')
+      WRITE(Output_Unit,300) (I,USER_LABELS%ALIAS(I),I=1,USER_LABELS%NALIAS)
+#endif
+END IF
+
+! Read Card Type 6   MULT=2   LINTAX*(MULT+1)-1+(2*MULT+2)*NBANKS
+IF (USER_LABELS%NBANKS .GT. 0) THEN
+   READ(INPUTUNIT)  (USER_LABELS%BNKLAB(I),I=1,USER_LABELS%NBANKS),(USER_LABELS%ZMESHO(I),I=1,USER_LABELS%LINTAX),     &
+                    (USER_LABELS%POSBNK(I),I=1,USER_LABELS%NBANKS),(USER_LABELS%NRODS(I),I=1,USER_LABELS%NBANKS),      &
+                    (USER_LABELS%NTIMES(I),I=1,USER_LABELS%NBANKS),(USER_LABELS%KFINTO(I),I=1,USER_LABELS%LINTAX-1)
+#ifdef DIF3D_Debug
+      WRITE(Output_Unit,'("[LABELS]...CONTROL ROD BANK LABEL........................................",42("."))')
+      WRITE(Output_Unit,300) (I,USER_LABELS%BNKLAB(I),I=1,USER_LABELS%NBANKS)
+      WRITE(Output_Unit,'("[LABELS]...ORIGINAL LAST-DIMENSION MESH STRUCTURE (CM)...................",42("."))')
+      WRITE(Output_Unit,305) (I,USER_LABELS%ZMESHO(I),I=1,USER_LABELS%LINTAX)
+      WRITE(Output_Unit,'("[LABELS]...CURRENT POSITION OF ROD BANK I (CM)...........................",42("."))')
+      WRITE(Output_Unit,305) (I,USER_LABELS%POSBNK(I),I=1,USER_LABELS%NBANKS)
+      WRITE(Output_Unit,'("[LABELS]...NO. OF RODS IN BANK I.........................................",42("."))')
+      WRITE(Output_Unit,310) (I,USER_LABELS%NRODS(I),I=1,USER_LABELS%NBANKS)
+      WRITE(Output_Unit,'("[LABELS]...NO. OF TIME NODES IN POSITION VS. TIME TABLE FOR BANK I.......",42("."))')
+      WRITE(Output_Unit,310) (I,USER_LABELS%NTIMES(I),I=1,USER_LABELS%NBANKS)
+      WRITE(Output_Unit,'("[LABELS]...ORIGINAL NUMBER OF FINE MESH BETWEEN ZMESHO(I) AND ZMESHO(I+1)",42("."))')
+      WRITE(Output_Unit,310) (I,USER_LABELS%KFINTO(I),I=1,USER_LABELS%LINTAX-1)
+#endif
+   ! Card type 8 is a subread for type 7
+   DO I = 1,USER_LABELS%NBANKS
+      ! Read Card Type 7
+      READ(INPUTUNIT)  (USER_LABELS%RBTIME(J,I),J=1,USER_LABELS%NTIMES(I)),(USER_LABELS%RBPOS(J,I),J=1,USER_LABELS%NTIMES(I)),  &
+                       (USER_LABELS%NMESH(K,I),K=1,USER_LABELS%NRODS(I)),(USER_LABELS%LENCHN(K,I),K=1,USER_LABELS%NRODS(I)),    &
+                       (USER_LABELS%LENROD(K,I),K=1,USER_LABELS%NRODS(I))
+#ifdef DIF3D_Debug
+         WRITE(Output_Unit,'("[LABELS]...TIME ENTRIES IN ROD POSITION VS. TIME TABLE FOR ROD BANK",32("."),I16)') I
+         WRITE(Output_Unit,305) (J,USER_LABELS%RBTIME(J,I),J=1,USER_LABELS%NTIMES(I))
+         WRITE(Output_Unit,'("[LABELS]...ROD-BANK POSITIONS IN TABLE (CM) FOR ROD BANK...........",32("."),I16)') I
+         WRITE(Output_Unit,305) (J,USER_LABELS%RBPOS(J,I),J=1,USER_LABELS%NTIMES(I))
+         WRITE(Output_Unit,'("[LABELS]...NO. OF PLANAR MESH CELLS IN ROD K OF CURRENT ROD BANK FOR ROD BANK",22("."),I16)') I
+         WRITE(Output_Unit,310) (K,USER_LABELS%NMESH(K,I),K=1,USER_LABELS%NRODS(I))
+         WRITE(Output_Unit,400) I
+         400 FORMAT('[LABELS]...NO. OF REGIONS DEFINED FOR THE IMMOVABLE PORTION OF ROD CHANNEL K FOR ROD BANK',10('.'),I16)
+         WRITE(Output_Unit,310) (K,USER_LABELS%LENCHN(K,I),K=1,USER_LABELS%NRODS(I))
+         WRITE(Output_Unit,405) I
+         405 FORMAT('[LABELS]...NO. OF REGIONS DEFINED FOR THE MOVEABLE PORTION OF ROD CHANNEL K FOR ROD BANK',11('.'),I16)
+         WRITE(Output_Unit,310) (K,USER_LABELS%LENROD(K,I),K=1,USER_LABELS%NRODS(I))
+#endif
+      DO K = 1,USER_LABELS%NRODS(I)
+         IF (USER_LABELS%LENCHN(K,I) + USER_LABELS%LENROD(K,I) + USER_LABELS%NMESH(K,I) .GT. 0) THEN
+            ! Read Card Type 8  MULT=2   (MULT+1)*(LENROD(K)+LENCHN(K))+ND*NMESH(K)
+            READ(INPUTUNIT)  (USER_LABELS%POSCHN(L,K,I),L=1,USER_LABELS%LENCHN(K,I)),   &
+                             (USER_LABELS%POSROD(L,K,I),L=1,USER_LABELS%LENROD(K,I)),   &
+                             (USER_LABELS%MRCHN(L,K,I),L=1,USER_LABELS%LENCHN(K,I)),    &
+                             (USER_LABELS%MRROD(L,K,I),L=1,USER_LABELS%LENROD(K,I)),    &
+                             ((USER_LABELS%MESH(L,M,K,I),L=1,USER_LABELS%ND),M=1,USER_LABELS%NMESH(K,I))
+#ifdef DIF3D_Debug
+               WRITE(Output_Unit,'("[LABELS]...LOW BOUND POS IMMOVABLE PORTION FOR ROD ",I3," IN BANK ",36("."),I16)') I,K
+               WRITE(Output_Unit,305) (L,USER_LABELS%POSCHN(L,K,I),L=1,USER_LABELS%LENCHN(K,I))
+               WRITE(Output_Unit,'("[LABELS]...LOW BOUND POS MOVABLE PORTION FOR ROD ",I3," IN BANK ",38("."),I16)') I,K
+               WRITE(Output_Unit,305) (L,USER_LABELS%POSROD(L,K,I),L=1,USER_LABELS%LENROD(K,I))
+               WRITE(Output_Unit,410) I,K
+               410 FORMAT('[LABELS]...REGION ASSIGNMENT IN THE IMMOVABLE PORTION FOR ROD ',I3,' IN BANK ',25('.'),I16)
+               WRITE(Output_Unit,310) (L,USER_LABELS%MRCHN(L,K,I),L=1,USER_LABELS%LENCHN(K,I))
+               WRITE(Output_Unit,415) I,K
+               415 FORMAT('[LABELS]...REGION ASSIGNMENT IN THE MOVEABLE PORTION FOR TIP OF ROD ',I3,' IN BANK ',19('.'),I16)
+               WRITE(Output_Unit,310) (L,USER_LABELS%MRROD(L,K,I),L=1,USER_LABELS%LENROD(K,I))
+               WRITE(Output_Unit,420)I,K
+               420 FORMAT('[LABELS]...PLANAR MESH CELL FOR ROD ',I3,' IN BANK ',51('.'),I16)
+               DO M=1,USER_LABELS%NMESH(K,I)
+                  WRITE(Output_Unit,425) ((M,L,USER_LABELS%MESH(L,M,K,I)),L=1,USER_LABELS%ND)
+                  425 FORMAT(('[LABELS]...',6('[',I3,',',I3,',',I6,']')))     ! REAL
+               END DO
+#endif
+         END IF ! CARD TYPE 8
+      END DO  ! K=1,LRODS
+   END DO !I = 1,NBANKS
+END IF
+
+IF (USER_LABELS%NVARY .GT. 0) THEN
+   WRITE(Output_Unit,'("[LABELS]...NVARY OPTION OF LABELS IS NOT SUPPORTED WELL",60("."))')
+   WRITE(Output_Unit,'("[LABELS]...BASICALLY, IF THIS WORKS THEN YEAH, IF NOT THEN OH WELL",49("."))')
+   ! Welcome to my nightmare.
+   ! Basically the control characters are very confusing and I am just reading data just like the specified format
+   ! It shouldn't work since MAXBRN should not be the total number of points on type 10 or 11
+   ! Read Card Type 9
+   READ(INPUTUNIT)  (USER_LABELS%BRNLAB(L),L=1,USER_LABELS%NVARY),(USER_LABELS%BRNREF(L),L=1,USER_LABELS%NVARY),         &
+                    (USER_LABELS%BRNMIN(L),L=1,USER_LABELS%NVARY),(USER_LABELS%BRNMAX(L),L=1,USER_LABELS%NVARY),         &
+                    (USER_LABELS%NGPVAR(L),L=1,USER_LABELS%NVARY),((USER_LABELS%KINDXS(L,J),L=1,USER_LABELS%NVARY),J=1,2)
+#ifdef DIF3D_Debug
+      WRITE(Output_Unit,'("[LABELS]...LABELS OF BURNUP DEPENDENT ISOTOPES",69("."))')
+      WRITE(Output_Unit,300) (L,USER_LABELS%BRNLAB(L),L=1,USER_LABELS%NVARY)
+      WRITE(Output_Unit,'("[LABELS]...LABELS OF THE REFERENCE BASE ISOTOPES FOR EACH OF THE BURNUP DEPENDENT ISOTOPES",25("."))')
+      WRITE(Output_Unit,305) (L,USER_LABELS%BRNREF(L),L=1,USER_LABELS%NVARY)
+      WRITE(Output_Unit,'("[LABELS]...SMALLEST ATM DENS USED FOR THE POLY FIT FOR THE L-TH BURNUP DEPENDENT ISOTOPE",27("."))')
+      WRITE(Output_Unit,305) (L,USER_LABELS%BRNMIN(L),L=1,USER_LABELS%NVARY)
+      WRITE(Output_Unit,'("[LABELS]...LARGEST ATM DENS USED FOR THE POLY FIT FOR THE L-TH BURNUP DEPENDENT ISOTOPE",28("."))')
+      WRITE(Output_Unit,305) (L,USER_LABELS%BRNMAX(L),L=1,USER_LABELS%NVARY)
+      WRITE(Output_Unit,'("[LABELS]...THE # OF GROUPS THAT WILL HAVE BURNUP DEPENDENT XSECT FOR EACH ISOTOPE",34("."))')
+      WRITE(Output_Unit,310) (L,USER_LABELS%NGPVAR(L),L=1,USER_LABELS%NVARY)
+      WRITE(Output_Unit,'("[LABELS]...TYPE OF CROSS SECTIONS WHICH ARE BURNUP DEPENDENT",55("."))')
+      WRITE(Output_Unit,310) (J,L,(USER_LABELS%KINDXS(L,J),L=1,USER_LABELS%NVARY),J=1,2)
+#endif
+
+   IF (USER_LABELS%MAXBRN .GT. 0) THEN
+      ! Read Card Type 10
+      READ(INPUTUNIT)  ((USER_LABELS%NUMGRP(I,L),I=1,USER_LABELS%MAXBRN),L=1,USER_LABELS%NVARY),     &
+                       ((USER_LABELS%NORCAP(I,L),I=1,USER_LABELS%MAXBRN),L=1,USER_LABELS%NVARY),     &
+                       ((USER_LABELS%NORFIS(I,L),I=1,USER_LABELS%MAXBRN),L=1,USER_LABELS%NVARY)
+#ifdef DIF3D_Debug
+         DO L = 1,USER_LABELS%NVARY
+            WRITE(Output_Unit,'("[LABELS]...GROUP # FOR THE I-TH GROUP FOR THE BURNUP DEPENDENT ISOTOPE",29("."),I16)') L
+            WRITE(Output_Unit,310) (I,USER_LABELS%NUMGRP(I,L),I=1,USER_LABELS%MAXBRN)
+            WRITE(Output_Unit,'("[LABELS]...THE CAPTURE POLY FIT ORDER FOR THE BURNUP DEPENDENT ISOTOPE",29("."),I16)') L
+            WRITE(Output_Unit,305) (I,USER_LABELS%NORCAP(I,L),I=1,USER_LABELS%MAXBRN)
+            WRITE(Output_Unit,'("[LABELS]...THE FISSION POLY FIT ORDER FOR THE BURNUP DEPENDENT ISOTOPE",29("."),I16)') L
+            WRITE(Output_Unit,305) (I,USER_LABELS%NORFIS(I,L),I=1,USER_LABELS%MAXBRN)
+          END DO
+#endif
+
+      ! Read Card Type 11
+      IF (USER_LABELS%MAXORD .GT. 0) THEN
+         READ(INPUTUNIT)  (((USER_LABELS%CFIT(I,J,L),I=1,USER_LABELS%MAXORD+1),J=1,USER_LABELS%MAXBRN),L=1,USER_LABELS%NVARY), &
+                          (((USER_LABELS%FFIT(I,J,L),I=1,USER_LABELS%MAXORD+1),J=1,USER_LABELS%MAXBRN),L=1,USER_LABELS%NVARY)
+#ifdef DIF3D_Debug
+            DO L = 1,USER_LABELS%NVARY
+               DO M = 1,USER_LABELS%MAXBRN
+                  WRITE(Output_Unit,'("[LABELS]...CAPTURE COEFFICIENTS FOR THE BURNUP GROUP ",I5," ISOTOPE",33("."),I16)') M,L
+                  WRITE(Output_Unit,305) (I,USER_LABELS%CFIT(I,M,L),I=1,USER_LABELS%MAXORD+1)
+                  WRITE(Output_Unit,'("[LABELS]...FISSION COEFFICIENTS FOR THE BURNUP GROUP ",I5," ISOTOPE",33("."),I16)') M,L
+                  WRITE(Output_Unit,305) (I,USER_LABELS%FFIT(I,M,L),I=1,USER_LABELS%MAXORD+1)
+               END DO
+            END DO
+#endif
+      END IF ! MAXORD .GT. 0
+   END IF ! MAXBURN .GT. 0
+END IF ! NVARY .GT. 0
+
+CLOSE(UNIT=INPUTUNIT)
+USER_LABELS%DEFINED = .TRUE.
+
+CALL NE_Kind_FREELOGICALUNIT(INPUTUNIT)
+
+END SUBROUTINE LABELS_IMPORT
+
